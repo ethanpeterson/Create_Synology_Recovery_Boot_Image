@@ -13,20 +13,27 @@
 ::     Create a bootable ISO with the output of this script
 
 :: variables
-SET basedirectory=E:\temp
-SET isodirectory=%basedirectory%\winpe
+SET targetdirectory=E:\temp\
+SET sourcedirectory=E:\temp\
+SET winpefolder=winpe
 SET adkdirectory=C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools
 SET timezone=Central Standard Time
-SET recoverytool=%basedirectory%\Synology Recovery Tool-x64-2.2.0-2074.zip
-SET driverdirectory=%basedirectory%\Drivers
-SET imagename=%basedirectory%\custom_pe_amd64.iso
+SET recoverytoolname=Synology Recovery Tool-x64-2.2.0-2074.zip
+SET driverfoldername=Drivers
+SET isoname=custom_pe_amd64.iso
+
+:: paths
+SET winpepath=%targetdirectory%%winpefolder%
+SET recoverytoolpath=%sourcedirectory%%recoverytoolname%
+SET driverpath=%sourcedirectory%%driverfoldername%
+SET imagename=%targetdirectory%%isoname%
 
 :: clean up left over directories
 ECHO =============================
 ECHO Preliminary cleanup
 ECHO =============================
-IF EXIST %isodirectory%\ (
-    rmdir %isodirectory% /s /q
+IF EXIST %winpepath%\ (
+    rmdir %winpepath% /s /q
 ) ELSE (
     ECHO Nothing found to cleanup, continuing...
 )
@@ -38,24 +45,24 @@ pushd %adkdirectory%
 CALL DandISetEnv.bat
 
 :: copy the base image to the working directory
-CALL copype.cmd amd64 %isodirectory%
+CALL copype.cmd amd64 %winpepath%
 
 :: create the image and mount it
 ECHO =============================
 ECHO Creating the image and mounting it
 ECHO =============================
-CALL Dism.exe /Mount-Wim /WimFile:"%isodirectory%\media\sources\boot.wim" /index:1 /MountDir:"%isodirectory%\mount"
+CALL Dism.exe /Mount-Wim /WimFile:"%winpepath%\media\sources\boot.wim" /index:1 /MountDir:"%winpepath%\mount"
 
 :: create the Synology specific directory "ActiveBackup"
-mkdir %isodirectory%\mount\ActiveBackup
+mkdir %winpepath%\mount\ActiveBackup
 
 :: unzip the Synology files into the ISO directory
-IF EXIST %recoverytool% (
+IF EXIST %recoverytoolpath% (
     ECHO =============================
-    ECHO Extracting Zip contents from %recoverytool%...
+    ECHO Extracting Zip contents from %recoverytoolpath%...
     ECHO =============================
-    pushd %isodirectory%\mount\ActiveBackup
-    tar -xf "%recoverytool%"
+    pushd %winpepath%\mount\ActiveBackup
+    tar -xf "%recoverytoolpath%"
     ECHO =============================
     ECHO Unzip complete, moving on...
     ECHO =============================
@@ -68,17 +75,17 @@ IF EXIST %recoverytool% (
 
 :: set the local timezone
 :SETTIMEZONE
-CALL Dism.exe /Image:"%isodirectory%\mount" /Set-TimeZone:"%timezone%"
+CALL Dism.exe /Image:"%winpepath%\mount" /Set-TimeZone:"%timezone%"
 ECHO =============================
 ECHO Timezone has been set
 ECHO =============================
 
 :: if the driver directory exists then copy the drivers into our image
-IF EXIST %driverdirectory%\ (
+IF EXIST %driverpath%\ (
     ECHO =============================
     ECHO Copying LAN drivers
     ECHO =============================
-    CALL Dism.exe /Image:"%isodirectory%\mount" /Add-Driver /Driver:"%driverdirectory%" /Recurse
+    CALL Dism.exe /Image:"%winpepath%\mount" /Add-Driver /Driver:"%driverpath%" /Recurse
     ECHO =============================
     ECHO Drivers copy complete...
     ECHO =============================
@@ -90,19 +97,19 @@ IF EXIST %driverdirectory%\ (
 ECHO =============================
 ECHO Save and unmount image...
 ECHO =============================
-CALL Dism.exe /Unmount-Wim /MountDir:"%isodirectory%\mount" /COMMIT
+CALL Dism.exe /Unmount-Wim /MountDir:"%winpepath%\mount" /COMMIT
 
 :: build an ISO of this image
 ECHO =============================
 ECHO Create ISO
 ECHO =============================
-CALL MakeWinPEMedia /ISO %isodirectory% %imagename%
+CALL MakeWinPEMedia /ISO %winpepath% %imagename%
 ECHO =============================
 ECHO ISO creation complete
 ECHO =============================
 
 :: cleanup
-rmdir %isodirectory% /s /q
+rmdir %winpepath% /s /q
 ECHO =============================
 ECHO Directory cleaned up
 ECHO =============================
@@ -115,7 +122,7 @@ ECHO Don't forget to create a bootable USB with this ISO ^(%imagename%^)
 GOTO :END
 
 :CANCEL
-CALL Dism.exe /Unmount-Wim /MountDir:"%isodirectory%\mount" /COMMIT
+CALL Dism.exe /Unmount-Wim /MountDir:"%winpepath%\mount" /COMMIT
 CALL DISM /cleanup-wim
 ECHO Image unmounted
 
